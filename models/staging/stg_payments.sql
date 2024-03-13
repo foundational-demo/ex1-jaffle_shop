@@ -8,7 +8,7 @@ with source as (
         raw_payments.id,
         raw_payments.order_id,
         raw_payments.payment_method,
-        raw_payments.amount
+        raw_payments.amount,
         raw_orders.user_id as customer_id
     from {{ ref('raw_payments') }} as raw_payments
         join {{ ref('raw_orders') }} as raw_orders
@@ -28,7 +28,7 @@ with source as (
             source.order_id,
             source.payment_method,
             -- `amount` is currently stored in cents, so we convert it to dollars
-            source.amount / 100 as amount
+            source.amount / 100 as amount,
             customer_address.address as billing_address
         from source
             join customer_address
