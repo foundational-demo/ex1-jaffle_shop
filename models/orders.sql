@@ -40,7 +40,7 @@ final as (
         orders.customer_id,
         orders.order_date,
         orders.status,
-        orders.shipping_address,
+        orders.shipping_address
 
         {% for payment_method in payment_methods -%}
 
@@ -48,7 +48,7 @@ final as (
 
         {% endfor -%}
 
-        order_payments.total_amount as amount
+        order_payments.total_amount as amount,
 
         customers.address as shipping_address
 
