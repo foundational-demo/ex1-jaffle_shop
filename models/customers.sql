@@ -55,7 +55,7 @@ final as (
         customer_orders.most_recent_order,
         customer_orders.number_of_orders,
         customer_payments.total_amount as customer_lifetime_value,
-        customers.address
+        customers.default_shipping_address
 
     from customers
 
