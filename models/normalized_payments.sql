@@ -18,7 +18,7 @@ cash_payments as (
 non_cash_payments as (
 
     select
-        *
+        *,
         amount * 0.8 as normalized_value
     from all_payments
 
