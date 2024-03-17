@@ -25,7 +25,7 @@ non_cash_payments as (
     where payment_method in ('coupon', 'gift_card')
 
     group by order_id
-)
+),
 
 normalized_all_payments as (
 
