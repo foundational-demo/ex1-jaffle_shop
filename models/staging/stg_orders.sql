@@ -23,6 +23,7 @@ renamed as (
 order_with_total_amount as (
     select 
         r.*,
+        o.status as status,
         (
             o.credit_card_amount + 
             o.coupon_amount +
