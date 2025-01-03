@@ -1,4 +1,4 @@
-{% set payment_methods = ['coupon', 'bank_transfer', 'gift_card'] %}
+{% set payment_methods = ['credit_card', 'coupon', 'bank_transfer', 'gift_card'] %}
 
 with orders as (
 
@@ -21,7 +21,11 @@ with order_payments as (
         sum(case when payment_method = '{{ payment_method }}' then amount else 0 end) as {{ payment_method }}_amount,
         {% endfor -%}
 
-        sum(amount) as total_amount
+        sum(case
+         when payment_method = 'credit_card' then amount
+         when payment_method = 'coupon' then amount
+         when payment_method = 'bank_transfer' then amount
+        ) as total_amount
 
     from payments
 
