@@ -19,6 +19,7 @@ renamed as (
         amount / 100 as amount
 
     from source
+    where payment_method in ('credit_card', 'coupon', 'bank_transfer', 'gift_card')
 
 )
 
