@@ -32,7 +32,7 @@ with order_payments as (
 with final as (
 
     select
-        orders.order_id,
+        order_id,
         orders.customer_id,
         orders.order_date,
         orders.status,
