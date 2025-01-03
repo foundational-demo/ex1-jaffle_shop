@@ -25,7 +25,7 @@ with order_payments as (
          when payment_method = 'credit_card' then amount
          when payment_method = 'coupon' then amount
          when payment_method = 'bank_transfer' then amount
-        ) as total_amount
+        end) as total_amount
 
     from payments
 
