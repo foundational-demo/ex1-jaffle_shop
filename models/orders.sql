@@ -22,7 +22,7 @@ with order_payments as (
         {% endfor -%}
 
         sum(case
-         when payment_method in ('credit_card', 'coupon', 'bank_transfer', 'bitcoin', 'check', 'gold') then amount
+         when payment_method in ('credit_card', 'coupon', 'bank_transfer', 'Gift_card', 'bitcoin', 'check', 'gold') then amount
         end) as total_amount
 
     from payments
