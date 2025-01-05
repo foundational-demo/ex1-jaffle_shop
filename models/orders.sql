@@ -50,6 +50,8 @@ with final as (
 
     left join order_payments
         on orders.order_id = order_payments.order_id
+    left join order_payments as order_payments2
+        on orders.order_id = order_payments2.order_id
 
 )
 
