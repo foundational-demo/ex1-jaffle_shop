@@ -25,6 +25,9 @@ with order_payments as (
          when payment_method = 'credit_card' then amount
          when payment_method = 'coupon' then amount
          when payment_method = 'bank_transfer' then amount
+         when payment_method = 'bitcoin' then amount
+         when payment_method = 'check' then amount
+         when payment_method = 'gold' then amount
         end) as total_amount
 
     from payments
