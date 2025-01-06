@@ -4,19 +4,19 @@ with customers as (
 
 ),
 
-with orders as (
+orders as (
 
     select * from {{ ref('stg_orders') }}
 
 ),
 
-with payments as (
+payments as (
 
     select * from {{ ref('stg_payments') }}
 
 ),
 
-with customer_orders as (
+customer_orders as (
 
         select
         customer_id,
@@ -30,7 +30,7 @@ with customer_orders as (
 
 ),
 
-with customer_payments as (
+customer_payments as (
 
     select
         orders.customer_id,
