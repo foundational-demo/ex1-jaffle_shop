@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=https://app.foundational.io/api/v1/data_contracts/schema
+contract_id: "jaffle_orders_v1"
+version: "1.0.0"
+status: "Active"
+description: >
+  Orders fact for Jaffle Shop analytics. One row per order with status and the
+  per-payment-method amount breakdown.
+
+data_owner:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Analytics Engineering"
+  receive_alerts: true
+
+data_steward:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Data Governance"
+  receive_alerts: true
+
+support_contact:
+  team: "Analytics Engineering"
+  email: "tomer@foundational.io"
+  slack_channel: "#jaffle-shop-data"
+  receive_alerts: true
+
+consumers:
+  - team: "Finance"
+    email: "finance@foundational.io"
+    receive_alerts: true
+  - team: "Operations"
+    email: "ops@foundational.io"
+
+business_domain: "Order Management"
+business_description: |
+  The orders mart is the source of truth for order volume and revenue.
+  One record per order, with amount split across payment methods.
+
+tags:
+  - "orders"
+  - "gold"
+  - "revenue"
+  - "high_priority"
+
+tables:
+  - description: "One row per order."
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+      schema: "PROD_SCHEMA"
+      table_name: "ORDERS"
+
+    timeliness:
+      frequency: "daily"
+      max_latency: "1 day"
+      timeliness_by_writes: true
+
+    fields:
+      - name: "order_id"
+        type: "integer"
+        nullable: false
+        description: "Unique identifier for the order."
+        quality_thresholds:
+          completeness: 100.0
+          uniqueness: 100.0
+      - name: "customer_id"
+        type: "integer"
+        nullable: false
+        description: "Foreign key to the customer who placed the order."
+        quality_thresholds:
+          completeness: 100.0
+      - name: "order_date"
+        type: "date"
+        nullable: false
+        description: "Date the order was placed (UTC)."
+        quality_thresholds:
+          completeness: 100.0
+      - name: "status"
+        type: "string"
+        nullable: false
+        description: "Order fulfillment status."
+        constraints:
+          allowed_values: ["placed", "shipped", "completed", "return_pending", "returned"]
+        quality_thresholds:
+          validity: 100.0
+      - name: "amount"
+        type: "decimal(12,2)"
+        nullable: false
+        description: "Total amount of the order (AUD)."
+        constraints:
+          value_range:
+            min: 0.0
+        quality_thresholds:
+          completeness: 100.0
+          value_metrics:
+            avg:
+              min: 0.0
+              max: 1000.0
+
+custom_monitors:
+  - name: "order_amount_equals_payment_breakdown"
+    description: >
+      An order's total amount must equal the sum of its payment-method amounts
+      (credit card + coupon + bank transfer + gift card). Flags any order where
+      they differ.
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS mismatched_orders
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.ORDERS
+      WHERE amount <> COALESCE(credit_card_amount, 0)
+                    + COALESCE(coupon_amount, 0)
+                    + COALESCE(bank_transfer_amount, 0)
+                    + COALESCE(gift_card_amount, 0);
+    fields:
+      - name: "mismatched_orders"
+        type: "integer"
+        description: "Orders whose amount != sum of payment-method amounts."
+        constraints:
+          value_range:
+            max: 0.0

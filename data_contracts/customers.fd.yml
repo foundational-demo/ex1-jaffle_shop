@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=https://app.foundational.io/api/v1/data_contracts/schema
+contract_id: "jaffle_customers_v1"
+version: "1.0.0"
+status: "Active"
+description: >
+  Customer dimension for Jaffle Shop analytics. One row per customer with
+  lifetime order counts and value, built from staged orders and payments.
+
+data_owner:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Analytics Engineering"
+  receive_alerts: true
+
+data_steward:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Data Governance"
+  receive_alerts: true
+
+support_contact:
+  team: "Analytics Engineering"
+  email: "tomer@foundational.io"
+  slack_channel: "#jaffle-shop-data"
+  receive_alerts: true
+
+consumers:
+  - team: "Marketing"
+    email: "marketing@foundational.io"
+    receive_alerts: true
+  - team: "Customer Success"
+    email: "cs@foundational.io"
+
+business_domain: "Customer 360"
+business_description: |
+  The customers mart powers retention and lifetime-value reporting.
+  One record per customer.
+
+tags:
+  - "customer"
+  - "gold"
+  - "PII"
+  - "high_priority"
+
+tables:
+  - description: "One row per customer."
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+      schema: "PROD_SCHEMA"
+      table_name: "CUSTOMERS"
+
+    timeliness:
+      frequency: "daily"
+      max_latency: "1 day"
+      timeliness_by_writes: true
+
+    fields:
+      - name: "customer_id"
+        type: "integer"
+        nullable: false
+        description: "Unique identifier for the customer."
+        quality_thresholds:
+          completeness: 100.0
+          uniqueness: 100.0
+      - name: "first_name"
+        type: "string"
+        nullable: true
+        description: "Customer first name."
+        sensitive: true
+      - name: "last_name"
+        type: "string"
+        nullable: true
+        description: "Customer last name."
+        sensitive: true
+      - name: "number_of_orders"
+        type: "integer"
+        nullable: true
+        description: "Lifetime number of orders placed by the customer."
+        quality_thresholds:
+          value_metrics:
+            min:
+              min: 0.0
+      - name: "total_order_amount"
+        type: "decimal(12,2)"
+        nullable: true
+        description: "Total value of the customer's orders to date (AUD)."
+        constraints:
+          value_range:
+            min: 0.0
+      - name: "first_order"
+        type: "date"
+        nullable: true
+        description: "Date of the customer's first order (UTC)."
+      - name: "most_recent_order"
+        type: "date"
+        nullable: true
+        description: "Date of the customer's most recent order (UTC)."
+
+custom_monitors:
+  - name: "customers_without_orders_have_no_value"
+    description: >
+      A customer with zero orders should have null/zero total order amount.
+      Flags rows that violate this.
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS inconsistent_customers
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.CUSTOMERS
+      WHERE COALESCE(number_of_orders, 0) = 0
+        AND COALESCE(total_order_amount, 0) > 0;
+    fields:
+      - name: "inconsistent_customers"
+        type: "integer"
+        description: "Customers with no orders but a non-zero total order amount."
+        constraints:
+          value_range:
+            max: 0.0
