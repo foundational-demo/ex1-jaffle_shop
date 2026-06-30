@@ -18,6 +18,21 @@ renamed as (
 
     from source
 
+),
+
+order_with_total_amount as (
+    select 
+        r.*,
+        o.status as status,
+        (
+            o.credit_card_amount + 
+            o.coupon_amount +
+            o.bank_transfer_amount +
+            o.gift_card_amount
+        ) as total_amount
+    from renamed r
+    join orders o on o.order_id = r.order_id
 )
 
-select * from renamed
+    
+select * from order_with_total_amount
