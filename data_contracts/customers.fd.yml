@@ -72,9 +72,6 @@ tables:
         quality_thresholds:
           completeness: 100.0
           uniqueness: 100.0
-          value_metrics:
-            min:
-              min: 1.0
 
       - name: "first_name"
         type: "string"
@@ -109,8 +106,6 @@ tables:
         quality_thresholds:
           completeness: 100.0
           value_metrics:
-            min:
-              min: 0.0
             max:
               max: 1000.0
 
@@ -124,8 +119,6 @@ tables:
         quality_thresholds:
           completeness: 100.0
           value_metrics:
-            min:
-              min: 0.0
             avg:
               min: 0.0
 

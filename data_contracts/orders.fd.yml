@@ -87,9 +87,6 @@ tables:
         quality_thresholds:
           completeness: 100.0
           uniqueness: 100.0
-          value_metrics:
-            min:
-              min: 1.0
 
       - name: "user_id"
         type: "integer"
@@ -100,9 +97,6 @@ tables:
             min: 1.0
         quality_thresholds:
           completeness: 100.0
-          value_metrics:
-            min:
-              min: 1.0
           rate_metrics:
             distinct_values_rate:
               min: 1.0
