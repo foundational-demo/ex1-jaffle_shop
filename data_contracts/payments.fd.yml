@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=https://app.foundational.io/api/v1/data_contracts/schema
+contract_id: "jaffle_payments_v1"
+version: "1.0.0"
+status: "Active"
+description: >
+  Payments domain for Jaffle Shop. Enforced entirely through custom monitors
+  over the RAW_PAYMENTS intake table: valid payment methods, non-negative
+  amounts, and referential integrity to orders.
+
+data_owner:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Analytics Engineering"
+  receive_alerts: true
+
+data_steward:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Data Governance"
+  receive_alerts: true
+
+support_contact:
+  team: "Analytics Engineering"
+  email: "tomer@foundational.io"
+  slack_channel: "#jaffle-shop-data"
+  receive_alerts: true
+
+consumers:
+  - team: "Finance"
+    email: "finance@foundational.io"
+    receive_alerts: true
+
+business_domain: "Payments"
+business_description: |
+  Payments records the money movement behind every order. RAW_PAYMENTS is the
+  landing table; amounts are stored in cents before the staging layer converts
+  them to dollars.
+
+tags:
+  - "payments"
+  - "bronze"
+  - "finance"
+  - "high_priority"
+
+custom_monitors:
+  - name: "payments_valid_method"
+    description: >
+      Every payment must use one of the four supported payment methods.
+      Flags any RAW_PAYMENTS row with an unexpected method.
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS invalid_method_payments
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.RAW_PAYMENTS
+      WHERE payment_method NOT IN (
+        'credit_card', 'coupon', 'bank_transfer', 'gift_card'
+      );
+    fields:
+      - name: "invalid_method_payments"
+        type: "integer"
+        description: "Payments whose payment_method is outside the supported set."
+        constraints:
+          value_range:
+            max: 0.0
+
+  - name: "payments_non_negative_amount"
+    description: >
+      Payment amounts (in cents) must never be negative. Flags any RAW_PAYMENTS
+      row with a negative amount.
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS negative_amount_payments
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.RAW_PAYMENTS
+      WHERE amount < 0;
+    fields:
+      - name: "negative_amount_payments"
+        type: "integer"
+        description: "Payments recorded with a negative amount."
+        constraints:
+          value_range:
+            max: 0.0
+
+  - name: "payments_reference_valid_orders"
+    description: >
+      Every payment must reference an order that exists in RAW_ORDERS. Flags
+      orphaned payments (referential-integrity violation).
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS orphan_payments
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.RAW_PAYMENTS p
+      LEFT JOIN FOUNDATIONAL_DB.PROD_SCHEMA.RAW_ORDERS o
+        ON p.order_id = o.id
+      WHERE p.order_id IS NOT NULL
+        AND o.id IS NULL;
+    fields:
+      - name: "orphan_payments"
+        type: "integer"
+        description: "Payments whose order_id has no matching row in RAW_ORDERS."
+        constraints:
+          value_range:
+            max: 0.0

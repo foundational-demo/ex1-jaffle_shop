@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://app.foundational.io/api/v1/data_contracts/schema
 contract_id: "jaffle_customers_v1"
-version: "1.0.0"
+version: "1.1.0"
 status: "Active"
 description: >
   Customer dimension for Jaffle Shop analytics. One row per customer with
@@ -55,32 +55,60 @@ tables:
       max_latency: "1 day"
       timeliness_by_writes: true
 
+    # Table-level volume monitor: the customer dimension should never be empty.
+    quality_thresholds:
+      value_metrics:
+        row_count:
+          min: 1.0
+
     fields:
       - name: "customer_id"
         type: "integer"
         nullable: false
         description: "Unique identifier for the customer."
+        constraints:
+          value_range:
+            min: 1.0
         quality_thresholds:
           completeness: 100.0
           uniqueness: 100.0
+
       - name: "first_name"
         type: "string"
         nullable: true
         description: "Customer first name."
         sensitive: true
+        constraints:
+          # Letters, spaces, dots and hyphens only (no digits/symbols).
+          pattern: "^[A-Za-z][A-Za-z .-]*$"
+        quality_thresholds:
+          completeness: 95.0
+          validity: 98.0
+
       - name: "last_name"
         type: "string"
         nullable: true
         description: "Customer last name."
         sensitive: true
+        constraints:
+          pattern: "^[A-Za-z][A-Za-z .-]*$"
+        quality_thresholds:
+          completeness: 95.0
+          validity: 98.0
+
       - name: "number_of_orders"
         type: "integer"
         nullable: true
         description: "Lifetime number of orders placed by the customer."
+        constraints:
+          value_range:
+            min: 0.0
         quality_thresholds:
+          completeness: 100.0
           value_metrics:
-            min:
-              min: 0.0
+            max:
+              max: 1000.0
+
       - name: "total_order_amount"
         type: "decimal(12,2)"
         nullable: true
@@ -88,14 +116,25 @@ tables:
         constraints:
           value_range:
             min: 0.0
+        quality_thresholds:
+          completeness: 100.0
+          value_metrics:
+            avg:
+              min: 0.0
+
       - name: "first_order"
         type: "date"
         nullable: true
         description: "Date of the customer's first order (UTC)."
+        quality_thresholds:
+          completeness: 90.0
+
       - name: "most_recent_order"
         type: "date"
         nullable: true
         description: "Date of the customer's most recent order (UTC)."
+        quality_thresholds:
+          completeness: 90.0
 
 custom_monitors:
   - name: "customers_without_orders_have_no_value"
@@ -114,6 +153,27 @@ custom_monitors:
       - name: "inconsistent_customers"
         type: "integer"
         description: "Customers with no orders but a non-zero total order amount."
+        constraints:
+          value_range:
+            max: 0.0
+
+  - name: "most_recent_order_after_first_order"
+    description: >
+      For every customer the most recent order date must be on or after their
+      first order date. Flags any row where the ordering is inverted.
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS out_of_order_customers
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.CUSTOMERS
+      WHERE first_order IS NOT NULL
+        AND most_recent_order IS NOT NULL
+        AND most_recent_order < first_order;
+    fields:
+      - name: "out_of_order_customers"
+        type: "integer"
+        description: "Customers whose most_recent_order precedes their first_order."
         constraints:
           value_range:
             max: 0.0
