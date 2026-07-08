@@ -1,0 +1,203 @@
+# yaml-language-server: $schema=https://app.foundational.io/api/v1/data_contracts/schema
+contract_id: "jaffle_orders_v1"
+version: "1.0.0"
+status: "Active"
+description: >
+  Orders domain for Jaffle Shop. Covers the raw order intake table
+  (RAW_ORDERS) with field-level and volume validations, plus custom
+  monitors that reconcile the modelled ORDERS mart against its payments.
+
+data_owner:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Analytics Engineering"
+  receive_alerts: true
+
+data_steward:
+  name: "Tomer Galun"
+  email: "tomer@foundational.io"
+  team: "Data Governance"
+  receive_alerts: true
+
+support_contact:
+  team: "Analytics Engineering"
+  email: "tomer@foundational.io"
+  slack_channel: "#jaffle-shop-data"
+  receive_alerts: true
+
+consumers:
+  - team: "Finance"
+    email: "finance@foundational.io"
+    receive_alerts: true
+  - team: "Operations"
+    email: "ops@foundational.io"
+
+business_domain: "Order Management"
+business_description: |
+  Orders is the transactional backbone of Jaffle Shop reporting. RAW_ORDERS is
+  the landing table for the source system; the ORDERS mart derives per-order
+  payment breakdowns from it and from payments.
+
+tags:
+  - "orders"
+  - "bronze"
+  - "high_priority"
+
+tables:
+  - description: "Raw order intake, one row per order as received from the source system."
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+      schema: "PROD_SCHEMA"
+      table_name: "RAW_ORDERS"
+
+    timeliness:
+      frequency: "daily"
+      max_latency: "1 day"
+      timeliness_by_writes: true
+      only_if_read: true
+      timeliness_alert:
+        description: "RAW_ORDERS has not been refreshed within its SLA."
+        severity: "HIGH"
+
+    partitioning:
+      strategy: "ByDate"
+      frequency: "daily"
+      format: "yyyy-MM-dd"
+      columns:
+        - name: "order_date"
+          type: "date"
+          description: "Order intake date used for daily partitioning."
+
+    # Volume guardrail: we always expect a non-trivial, bounded number of rows.
+    quality_thresholds:
+      value_metrics:
+        row_count:
+          min: 1.0
+          max: 10000000.0
+
+    fields:
+      - name: "id"
+        type: "integer"
+        nullable: false
+        description: "Unique identifier for the order (source primary key)."
+        constraints:
+          value_range:
+            min: 1.0
+        quality_thresholds:
+          completeness: 100.0
+          uniqueness: 100.0
+          value_metrics:
+            min:
+              min: 1.0
+
+      - name: "user_id"
+        type: "integer"
+        nullable: false
+        description: "Identifier of the customer who placed the order."
+        constraints:
+          value_range:
+            min: 1.0
+        quality_thresholds:
+          completeness: 100.0
+          value_metrics:
+            min:
+              min: 1.0
+          rate_metrics:
+            distinct_values_rate:
+              min: 1.0
+
+      - name: "order_date"
+        type: "date"
+        nullable: false
+        description: "Date (UTC) the order was placed."
+        quality_thresholds:
+          completeness: 100.0
+
+      - name: "status"
+        type: "string"
+        nullable: false
+        description: "Lifecycle status of the order."
+        constraints:
+          allowed_values:
+            - "placed"
+            - "shipped"
+            - "completed"
+            - "return_pending"
+            - "returned"
+        quality_thresholds:
+          completeness: 100.0
+          validity: 100.0
+
+custom_monitors:
+  - name: "orders_amount_reconciliation"
+    description: >
+      In the ORDERS mart the total order amount must equal the sum of its four
+      payment-method amounts. Flags orders where the breakdown does not add up.
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS unbalanced_orders
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.ORDERS
+      WHERE ABS(
+              COALESCE(amount, 0)
+              - (
+                  COALESCE(credit_card_amount, 0)
+                  + COALESCE(coupon_amount, 0)
+                  + COALESCE(bank_transfer_amount, 0)
+                  + COALESCE(gift_card_amount, 0)
+              )
+            ) > 0.01;
+    fields:
+      - name: "unbalanced_orders"
+        type: "integer"
+        description: "Orders whose amount does not equal the sum of payment-method amounts."
+        constraints:
+          value_range:
+            max: 0.0
+
+  - name: "orders_no_negative_amounts"
+    description: >
+      No order in the ORDERS mart may carry a negative total or a negative
+      payment-method amount. Flags any offending row.
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS negative_amount_orders
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.ORDERS
+      WHERE amount < 0
+         OR credit_card_amount < 0
+         OR coupon_amount < 0
+         OR bank_transfer_amount < 0
+         OR gift_card_amount < 0;
+    fields:
+      - name: "negative_amount_orders"
+        type: "integer"
+        description: "Orders with a negative total or payment-method amount."
+        constraints:
+          value_range:
+            max: 0.0
+
+  - name: "orders_reference_valid_customers"
+    description: >
+      Every order must reference a customer that exists in the CUSTOMERS mart.
+      Flags orphaned orders (referential-integrity violation).
+    data_source:
+      type: "Snowflake"
+      database: "FOUNDATIONAL_DB"
+    sql_statement: >
+      SELECT COUNT(*) AS orphan_orders
+      FROM FOUNDATIONAL_DB.PROD_SCHEMA.ORDERS o
+      LEFT JOIN FOUNDATIONAL_DB.PROD_SCHEMA.CUSTOMERS c
+        ON o.customer_id = c.customer_id
+      WHERE o.customer_id IS NOT NULL
+        AND c.customer_id IS NULL;
+    fields:
+      - name: "orphan_orders"
+        type: "integer"
+        description: "Orders whose customer_id has no matching row in CUSTOMERS."
+        constraints:
+          value_range:
+            max: 0.0
