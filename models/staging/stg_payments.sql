@@ -12,11 +12,14 @@ renamed as (
 
     select
         id as payment_id,
-        order_id,
+
         payment_method,
 
         -- `amount` is currently stored in cents, so we convert it to dollars
-        amount / 100 as amount
+        amount / 100 as amount,
+
+        -- initial `sales_tax` calculation, currently an approximation
+        (amount / 100) * 0.09 as sales_tax
 
     from source
 
